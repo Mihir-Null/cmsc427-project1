@@ -1,6 +1,5 @@
-# Extra Feature: Third-Person Mouse Camera
-
-This project extends the required keyboard navigation with a modern third-person control scheme.
+# Project 1
+Written in wgpu and deployed using github actions to a demo page at https://mihir-null.github.io/cmsc427-project1/
 
 ## Controls
 
@@ -8,6 +7,10 @@ This project extends the required keyboard navigation with a modern third-person
 - Move the mouse vertically to adjust the camera pitch. Pitch is clamped so the camera stays usable and does not flip (I wasn't going to use quaternions while still figuring out rust).
 - `W` and `S` move the player forward and backward relative to the camera's horizontal facing direction.
 - `A` and `D` strafe left and right relative to the camera's horizontal facing direction.
+
+## Extra Feature: Third-Person Mouse Camera
+
+This project extends the required keyboard navigation with a modern third-person control scheme.
 
 ## Implementation Notes
 
