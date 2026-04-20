@@ -23,7 +23,10 @@ pub async fn run() {
         use winit::platform::web::WindowExtWebSys;
         web_sys::window()
             .and_then(|w| w.document())
-            .and_then(|d| d.body())
+            .and_then(|d| {
+                d.get_element_by_id("canvas-host")
+                    .or_else(|| d.body().map(Into::into))
+            })
             .and_then(|b| {
                 window
                     .canvas()
