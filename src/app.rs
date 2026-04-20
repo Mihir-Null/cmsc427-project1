@@ -24,7 +24,11 @@ pub async fn run() {
         web_sys::window()
             .and_then(|w| w.document())
             .and_then(|d| d.body())
-            .and_then(|b| b.append_child(&window.canvas()).ok());
+            .and_then(|b| {
+                window
+                    .canvas()
+                    .and_then(|canvas| b.append_child(&canvas).ok())
+            });
     }
 
     let mut state = State::new(Arc::clone(&window)).await;
