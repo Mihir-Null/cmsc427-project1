@@ -215,7 +215,7 @@ impl State {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
-                force_fallback_adapter: cfg!(target_arch = "wasm32"),
+                force_fallback_adapter: false,
             })
             .await
             .ok_or_else(|| {
