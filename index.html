@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CMSC427 Project 1 – Scene Explorer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: monospace;
+            color: #e0e0e0;
+        }
+        canvas { display: block; border: 2px solid #444; }
+        #controls { margin-top: 10px; font-size: 13px; color: #aaa; text-align: center; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <canvas id="wgpu-canvas" width="1280" height="720"></canvas>
+    <div id="controls">
+        Mouse - orbit camera and choose player forward<br />
+        W/S - move forward/back &nbsp;|&nbsp; A/D - strafe left/right
+    </div>
+</body>
+</html>
