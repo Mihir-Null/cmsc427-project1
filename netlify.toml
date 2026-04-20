@@ -1,0 +1,10 @@
+[build]
+command = "rustup target add wasm32-unknown-unknown && trunk build --release"
+publish = "dist"
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+Cross-Origin-Opener-Policy = "same-origin"
+Cross-Origin-Embedder-Policy = "require-corp"
