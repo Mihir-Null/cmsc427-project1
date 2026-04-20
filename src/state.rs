@@ -197,10 +197,10 @@ impl State {
         let size = window.inner_size();
 
         // 1. Instance → 2. Surface → 3. Adapter → 4. Device+Queue
-        // The public web build uses WGPU's WebGL2 fallback path. Some browsers reject
-        // wgpu 0.20's older WebGPU limit names during requestDevice negotiation.
+        // The public web build targets browser WebGPU directly. Avoid WebGL/downlevel
+        // limits here; Chrome rejects some older limit names used by wgpu 0.20.
         #[cfg(target_arch = "wasm32")]
-        let backends = wgpu::Backends::GL;
+        let backends = wgpu::Backends::BROWSER_WEBGPU;
         #[cfg(not(target_arch = "wasm32"))]
         let backends = wgpu::Backends::all();
 
@@ -230,11 +230,7 @@ impl State {
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::empty(),
-                    required_limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
-                    } else {
-                        wgpu::Limits::default()
-                    },
+                    required_limits: wgpu::Limits::default(),
                 },
                 None,
             )
