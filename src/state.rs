@@ -9,6 +9,8 @@ use winit::window::Window;
 use crate::camera::Camera;
 use crate::geometry::{box_mesh, cube, cylinder, plane, sphere, Mesh, Transform, Vertex};
 
+const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
+
 // ── Uniform structs (must match WGSL byte-for-byte) ──────────────────────────
 
 #[repr(C)]
@@ -191,7 +193,7 @@ pub struct State {
 }
 
 impl State {
-    pub async fn new(window: Arc<Window>) -> Self {
+    pub async fn new(window: Arc<Window>) -> Result<Self, String> {
         let size = window.inner_size();
 
         // 1. Instance → 2. Surface → 3. Adapter → 4. Device+Queue
@@ -201,7 +203,7 @@ impl State {
         });
         let surface = instance
             .create_surface(Arc::clone(&window))
-            .expect("failed to create surface");
+            .map_err(|e| format!("failed to create surface: {e:?}"))?;
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
@@ -209,7 +211,10 @@ impl State {
                 force_fallback_adapter: false,
             })
             .await
-            .expect("no GPU adapter found");
+            .ok_or_else(|| {
+                "no compatible GPU adapter found. Check that WebGPU/WebGL is enabled in this browser."
+                    .to_string()
+            })?;
 
         log::info!("Adapter: {}", adapter.get_info().name);
 
@@ -227,7 +232,7 @@ impl State {
                 None,
             )
             .await
-            .expect("failed to create device");
+            .map_err(|e| format!("failed to create GPU device: {e:?}"))?;
 
         // 5. Surface config
         let surface_caps = surface.get_capabilities(&adapter);
@@ -236,7 +241,8 @@ impl State {
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .or_else(|| surface_caps.formats.first().copied())
+            .ok_or_else(|| "surface reported no supported color formats".to_string())?;
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
@@ -244,7 +250,11 @@ impl State {
             height: size.height,
             present_mode: wgpu::PresentMode::AutoVsync,
             desired_maximum_frame_latency: 2,
-            alpha_mode: surface_caps.alpha_modes[0],
+            alpha_mode: surface_caps
+                .alpha_modes
+                .first()
+                .copied()
+                .unwrap_or(wgpu::CompositeAlphaMode::Auto),
             view_formats: vec![],
         };
         surface.configure(&device, &config);
@@ -340,7 +350,7 @@ impl State {
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
+                format: DEPTH_FORMAT,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
                 stencil: wgpu::StencilState::default(),
@@ -466,7 +476,7 @@ impl State {
             &white_sampler,
         );
 
-        Self {
+        Ok(Self {
             window,
             surface,
             device,
@@ -490,7 +500,7 @@ impl State {
             white_sampler,
             scene_objects: vec![ground, barn, trunk, canopy, boulder, crate_obj],
             player_object: player_obj,
-        }
+        })
     }
 
     pub fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -651,7 +661,7 @@ impl State {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Depth32Float,
+                format: DEPTH_FORMAT,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             })

@@ -1,5 +1,5 @@
 # Project 1
-Written in wgpu and deployed using github actions to a demo page at https://mihir-null.github.io/cmsc427-project1/
+Written in wgpu and deployed using github actions to a demo page at https://427-p1.null-set.dev/
 
 ## Controls
 

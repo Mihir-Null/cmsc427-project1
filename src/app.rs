@@ -8,7 +8,21 @@ use winit::window::WindowBuilder;
 
 use crate::state::State;
 
+#[cfg(target_arch = "wasm32")]
+fn set_status(message: &str) {
+    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+        if let Some(status) = document.get_element_by_id("status") {
+            status.set_text_content(Some(message));
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn set_status(_: &str) {}
+
 pub async fn run() {
+    set_status("Starting renderer...");
+
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     let window = Arc::new(
         WindowBuilder::new()
@@ -32,9 +46,21 @@ pub async fn run() {
                     .canvas()
                     .and_then(|canvas| b.append_child(&canvas).ok())
             });
+        set_status("Canvas attached. Initializing GPU...");
     }
 
-    let mut state = State::new(Arc::clone(&window)).await;
+    let mut state = match State::new(Arc::clone(&window)).await {
+        Ok(state) => {
+            set_status("Renderer ready.");
+            state
+        }
+        Err(error) => {
+            let message = format!("Renderer failed: {error}");
+            log::error!("{message}");
+            set_status(&message);
+            return;
+        }
+    };
 
     #[cfg(not(target_arch = "wasm32"))]
     let mut last_time = std::time::Instant::now();

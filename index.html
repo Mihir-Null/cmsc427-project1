@@ -26,12 +26,20 @@
             display: block;
             border: 2px solid #444;
         }
-        #controls { margin-top: 10px; font-size: 13px; color: #aaa; text-align: center; line-height: 1.5; }
+        #status {
+            min-height: 18px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #c9c9d8;
+            text-align: center;
+        }
+        #controls { margin-top: 6px; font-size: 13px; color: #aaa; text-align: center; line-height: 1.5; }
     </style>
 </head>
 <body>
     <link data-trunk rel="rust" data-target-name="scene_explorer" data-wasm-opt="z" />
     <div id="canvas-host"></div>
+    <div id="status">Loading renderer...</div>
     <div id="controls">
         Mouse - orbit camera and choose player forward<br />
         W/S - move forward/back &nbsp;|&nbsp; A/D - strafe left/right
