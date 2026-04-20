@@ -197,8 +197,15 @@ impl State {
         let size = window.inner_size();
 
         // 1. Instance → 2. Surface → 3. Adapter → 4. Device+Queue
+        // The public web build uses WGPU's WebGL2 fallback path. Some browsers reject
+        // wgpu 0.20's older WebGPU limit names during requestDevice negotiation.
+        #[cfg(target_arch = "wasm32")]
+        let backends = wgpu::Backends::GL;
+        #[cfg(not(target_arch = "wasm32"))]
+        let backends = wgpu::Backends::all();
+
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends,
             ..Default::default()
         });
         let surface = instance
@@ -208,7 +215,7 @@ impl State {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
+                force_fallback_adapter: cfg!(target_arch = "wasm32"),
             })
             .await
             .ok_or_else(|| {
