@@ -9,6 +9,13 @@ use winit::window::Window;
 use crate::camera::Camera;
 use crate::geometry::{box_mesh, cube, cylinder, plane, sphere, Mesh, Transform, Vertex};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderError {
+    Reconfigure,
+    SkipFrame,
+    Validation,
+}
+
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 
 // ── Uniform structs (must match WGSL byte-for-byte) ──────────────────────────
@@ -197,17 +204,7 @@ impl State {
         let size = window.inner_size();
 
         // 1. Instance → 2. Surface → 3. Adapter → 4. Device+Queue
-        // The public web build targets browser WebGPU directly. Avoid WebGL/downlevel
-        // limits here; Chrome rejects some older limit names used by wgpu 0.20.
-        #[cfg(target_arch = "wasm32")]
-        let backends = wgpu::Backends::BROWSER_WEBGPU;
-        #[cfg(not(target_arch = "wasm32"))]
-        let backends = wgpu::Backends::all();
-
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends,
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let surface = instance
             .create_surface(Arc::clone(&window))
             .map_err(|e| format!("failed to create surface: {e:?}"))?;
@@ -215,13 +212,10 @@ impl State {
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
+                ..Default::default()
             })
             .await
-            .ok_or_else(|| {
-                "no compatible GPU adapter found. Check that WebGPU/WebGL is enabled in this browser."
-                    .to_string()
-            })?;
+            .map_err(|e| format!("no compatible GPU adapter found: {e:?}"))?;
 
         log::info!("Adapter: {}", adapter.get_info().name);
 
@@ -231,8 +225,8 @@ impl State {
                     label: None,
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
+                    ..Default::default()
                 },
-                None,
             )
             .await
             .map_err(|e| format!("failed to create GPU device: {e:?}"))?;
@@ -324,21 +318,26 @@ impl State {
         // 8. Pipeline layout + 9. Render pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Pipeline Layout"),
-            bind_group_layouts: &[&camera_bgl, &lights_bgl, &per_obj_bgl, &texture_bgl],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[
+                Some(&camera_bgl),
+                Some(&lights_bgl),
+                Some(&per_obj_bgl),
+                Some(&texture_bgl),
+            ],
+            immediate_size: 0,
         });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Main Pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: "vs_main",
+                entry_point: Some("vs_main"),
                 buffers: &[Vertex::layout()],
                 compilation_options: Default::default(),
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: "fs_main",
+                entry_point: Some("fs_main"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: config.format,
@@ -354,13 +353,14 @@ impl State {
             },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
                 stencil: wgpu::StencilState::default(),
                 bias: wgpu::DepthBiasState::default(),
             }),
             multisample: wgpu::MultisampleState::default(),
-            multiview: None,
+            multiview_mask: None,
+            cache: None,
         });
 
         // 10. Depth texture
@@ -530,8 +530,18 @@ impl State {
         self.player_object.update_transform(&self.queue);
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        let output = self.surface.get_current_texture()?;
+    pub fn render(&mut self) -> Result<(), RenderError> {
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(output) => output,
+            wgpu::CurrentSurfaceTexture::Suboptimal(output) => output,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                return Err(RenderError::Reconfigure);
+            }
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                return Err(RenderError::SkipFrame);
+            }
+            wgpu::CurrentSurfaceTexture::Validation => return Err(RenderError::Validation),
+        };
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
@@ -545,6 +555,7 @@ impl State {
                 label: Some("Main Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -566,6 +577,7 @@ impl State {
                 }),
                 occlusion_query_set: None,
                 timestamp_writes: None,
+                multiview_mask: None,
             });
 
             pass.set_pipeline(&self.render_pipeline);
@@ -726,14 +738,14 @@ impl State {
             view_formats: &[],
         });
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             pixels,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),
                 rows_per_image: Some(height),

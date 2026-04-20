@@ -11,7 +11,7 @@ name = "scene-explorer"
 path = "src/main.rs"
 
 [dependencies]
-wgpu = { version = "0.20", features = ["webgl"] }
+wgpu = "29.0.1"
 winit = "0.29"
 glam = { version = "0.27", features = ["bytemuck"] }
 bytemuck = { version = "1", features = ["derive"] }

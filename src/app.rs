@@ -6,7 +6,7 @@ use winit::event_loop::ControlFlow;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::WindowBuilder;
 
-use crate::state::State;
+use crate::state::{RenderError, State};
 
 #[cfg(target_arch = "wasm32")]
 fn set_status(message: &str) {
@@ -111,15 +111,14 @@ pub async fn run() {
                             state.camera.process_key(key, ks);
                         }
                         WindowEvent::RedrawRequested => match state.render() {
-                            Ok(_) => {}
-                            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
+                            Ok(_) | Err(RenderError::SkipFrame) => {}
+                            Err(RenderError::Reconfigure) => {
                                 let sz = state.size;
                                 state.resize(sz);
                             }
-                            Err(wgpu::SurfaceError::OutOfMemory) => {
-                                elwt.exit();
+                            Err(RenderError::Validation) => {
+                                log::error!("surface validation error while acquiring frame");
                             }
-                            Err(wgpu::SurfaceError::Timeout) => {}
                         },
                         _ => {}
                     }
